@@ -5,9 +5,9 @@ from torch.nn import functional as F
 #hyperparameters
 batch_size = 32 #the amount of independent sequences we will process in parallel
 block_size = 8 #the max context length for predictions
-max_iters = 3000
-eval_interval = 300
-learning_rate = 1e-2
+max_iters = 5000
+eval_interval = 500
+learning_rate = 1e-3
 device = "cuda" if torch.cuda.is_available() else "cpu"
 eval_iters = 200
 n_embed = 32
@@ -80,6 +80,15 @@ class Head(nn.Module):
         out = wei @ v
         return out
 
+class MultiHeadAttention(nn.Module):
+    #multiple heads of self attention in parallel
+    def __init__(self, num_heads, head_size):
+        super().__init__()
+        self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
+
+    def forward(self, x):
+        return torch.cat([h(x) for h in self.heads], dim=-1)
+
 #super simple bigram model
 class BigramLanguageModel(nn.Module):
     def __init__(self):
@@ -87,7 +96,7 @@ class BigramLanguageModel(nn.Module):
         #each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
         self.position_embedding_table = nn.Embedding(block_size, n_embed)
-        self.sa_head = Head(n_embed)
+        self.sa_heads = MultiHeadAttention(4, n_embed // 4) #i.e. 4 heads of 8-dimensional self attention
         self.lm_head = nn.Linear(n_embed, vocab_size)
 
     def forward(self, idx, targets=None):
@@ -98,7 +107,7 @@ class BigramLanguageModel(nn.Module):
         pos_emb = self.position_embedding_table(torch.arange(T, device=device))
         #the code above is plucking out the row in the embedding table that corresponds to the current character
         x = tok_emb + pos_emb
-        x = self.sa_head(x)
+        x = self.sa_heads(x)
         logits = self.lm_head(x)
 
         if targets is None:
@@ -117,8 +126,10 @@ class BigramLanguageModel(nn.Module):
     def generate(self, idx, max_new_tokens):
         #idx is (B, T) array of indices in the current context
         for _ in range(max_new_tokens):
+            #crop idx to the last block_size tokens
+            idx_cond = idx[:, -block_size:]
             #get the predictions
-            logits, loss = self(idx)
+            logits, loss = self(idx_cond)
             #focus only on the last time step
             logits = logits[:, -1, :] # becomes (B, C)
             #apply softmax to get probabilities
