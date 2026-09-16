@@ -97,9 +97,9 @@ class FeedForward(nn.Module):
     def __init__(self, n_embed):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(n_embed, n_embed),
+            nn.Linear(n_embed, 4 * n_embed),
             nn.ReLU(),
-            nn.Linear(n_embed, n_embed)
+            nn.Linear(4 * n_embed, n_embed)
         )
 
     def forward(self, x):
@@ -143,8 +143,7 @@ class BigramLanguageModel(nn.Module):
         pos_emb = self.position_embedding_table(torch.arange(T, device=device))
         #the code above is plucking out the row in the embedding table that corresponds to the current character
         x = tok_emb + pos_emb
-        x = self.sa_heads(x)
-        x = self.ffwd(x)
+        x = self.blocks(x)
         logits = self.lm_head(x)
 
         if targets is None:
