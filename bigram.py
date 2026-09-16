@@ -85,9 +85,12 @@ class MultiHeadAttention(nn.Module):
     def __init__(self, num_heads, head_size):
         super().__init__()
         self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
+        self.proj = nn.Linear(n_embed, n_embed)
 
     def forward(self, x):
-        return torch.cat([h(x) for h in self.heads], dim=-1)
+        out = torch.cat([h(x) for h in self.heads], dim=-1)
+        out = self.proj(out)
+        return out
 
 class FeedForward(nn.Module):
     #simple linear layer followed by non linearity
@@ -96,10 +99,25 @@ class FeedForward(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(n_embed, n_embed),
             nn.ReLU(),
+            nn.Linear(n_embed, n_embed)
         )
 
     def forward(self, x):
         return self.net(x)
+
+class Block(nn.Module):
+    #transformer block, communication followed by computation
+    def __init__(self, n_embed, n_head):
+        #n_embed: embedding dimension, n_head: the numbed of heads we would like
+        super().__init__()
+        head_size = n_embed // n_head
+        self.sa = MultiHeadAttention(n_head, head_size)
+        self.ffwd = FeedForward(n_embed)
+
+    def forward(self, x):
+        x = x + self.sa(x)
+        x = x + self.ffwd(x)
+        return x
 
 #super simple bigram model
 class BigramLanguageModel(nn.Module):
@@ -108,8 +126,13 @@ class BigramLanguageModel(nn.Module):
         #each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
         self.position_embedding_table = nn.Embedding(block_size, n_embed)
-        self.sa_heads = MultiHeadAttention(4, n_embed // 4) #i.e. 4 heads of 8-dimensional self attention
-        self.ffwd = FeedForward(n_embed)
+        self.blocks = nn.Sequential(
+            Block(n_embed, n_head=4),
+            Block(n_embed, n_head=4),
+            Block(n_embed, n_head=4)
+        )
+        # self.sa_heads = MultiHeadAttention(4, n_embed // 4) #i.e. 4 heads of 8-dimensional self attention
+        # self.ffwd = FeedForward(n_embed)
         self.lm_head = nn.Linear(n_embed, vocab_size)
 
     def forward(self, idx, targets=None):
