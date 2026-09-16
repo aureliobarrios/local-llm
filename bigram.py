@@ -87,6 +87,7 @@ class BigramLanguageModel(nn.Module):
         #each token directly reads off the logits for the next token from a lookup table
         self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
         self.position_embedding_table = nn.Embedding(block_size, n_embed)
+        self.sa_head = Head(n_embed)
         self.lm_head = nn.Linear(n_embed, vocab_size)
 
     def forward(self, idx, targets=None):
@@ -97,7 +98,7 @@ class BigramLanguageModel(nn.Module):
         pos_emb = self.position_embedding_table(torch.arange(T, device=device))
         #the code above is plucking out the row in the embedding table that corresponds to the current character
         x = tok_emb + pos_emb
-
+        x = self.sa_head(x)
         logits = self.lm_head(x)
 
         if targets is None:
