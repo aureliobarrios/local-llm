@@ -131,7 +131,8 @@ class BigramLanguageModel(nn.Module):
         self.blocks = nn.Sequential(
             Block(n_embed, n_head=4),
             Block(n_embed, n_head=4),
-            Block(n_embed, n_head=4)
+            Block(n_embed, n_head=4),
+            nn.LayerNorm(n_embed)
         )
         # self.sa_heads = MultiHeadAttention(4, n_embed // 4) #i.e. 4 heads of 8-dimensional self attention
         # self.ffwd = FeedForward(n_embed)
