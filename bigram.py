@@ -8,7 +8,13 @@ block_size = 256 #the max context length for predictions
 max_iters = 5000
 eval_interval = 500
 learning_rate = 3e-4
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+if torch.backends.mps.is_available():
+    device = torch.device("mps")
+    print("GPU found using Apple Silicon!")
+else:
+    device = torch.device("cpu")
+    print("No GPU found using CPU.")
 eval_iters = 200
 n_embed = 384
 n_head = 6
